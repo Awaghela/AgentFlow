@@ -1,0 +1,10 @@
+# Optional install — only needed when EMBEDDING_BACKEND=local.
+#
+#   pip install -r requirements-local-embeddings.txt --break-system-packages
+#
+# Kept separate from requirements.txt because sentence-transformers pulls in
+# torch (large download, ~1-2GB). The default EMBEDDING_BACKEND=tfidf and
+# EMBEDDING_BACKEND=cohere paths never import this package, so the base
+# image/install stays small and fast unless you explicitly opt into local
+# dense embeddings.
+sentence-transformers==3.1.1

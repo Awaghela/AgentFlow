@@ -1,0 +1,75 @@
+services:
+  db:
+    # pgvector/pgvector ships the pgvector extension pre-installed on top of
+    # the official postgres image — same postgres:16 underneath, so this is
+    # a drop-in replacement. The extension is only ever CREATE EXTENSION'd
+    # (and only ever used) when retrieval resolves to "local" or "cohere";
+    # plain tfidf (no COHERE_API_KEY set) ignores it entirely.
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agentflow
+      POSTGRES_PASSWORD: agentflow
+      POSTGRES_DB: agentflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - agentflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentflow -d agentflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://agentflow:agentflow@db:5432/agentflow
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      # All of these read from a root-level .env file (docker compose loads
+      # it automatically) if present, otherwise fall back to the defaults
+      # after the ":-". Copy .env.example to .env and fill in real values
+      # rather than editing this file.
+      LLM_MODE: ${LLM_MODE:-simulation}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # "auto" (default for both): use Cohere automatically the moment
+      # COHERE_API_KEY is set below — no separate flag to flip. Falls back
+      # to tfidf retrieval / no reranking with no key at all. The eval
+      # suite always stays on tfidf regardless, for reproducibility.
+      EMBEDDING_BACKEND: ${EMBEDDING_BACKEND:-auto}
+      RERANK_PROVIDER: ${RERANK_PROVIDER:-auto}
+      CORPUS_SOURCE: ${CORPUS_SOURCE:-seed}
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+    ports:
+      - "5173:5173"
+
+volumes:
+  agentflow_pgdata:
+
+networks:
+  default:
+    name: agentflow_net
+    driver: bridge
+    ipam:
+      config:
+        # Explicit subnet so this project doesn't depend on Docker's
+        # auto-allocated address-pool, which can run out on machines with
+        # many other compose projects/networks accumulated over time
+        # ("all predefined address pools have been fully subnetted").
+        # Change this range if it happens to collide with another network
+        # on your machine.
+        - subnet: 172.28.0.0/16
