@@ -132,11 +132,3 @@ frontend/
 ```
 
 <br />
-
-## Design notes
-
-Dark "control tower" palette — amber for pending/attention states, green/red/cyan for
-the rest — monospace type for anything that's data (latencies, IDs, trace output), and a
-signature trace timeline styled after a flight recorder: each step is a tick on a
-vertical tape, width-scaled to its latency, colored by outcome. Built to look like an
-audit/observability tool for AI agent decisions, because that's what it is.
